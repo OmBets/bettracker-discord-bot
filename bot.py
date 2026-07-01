@@ -27,10 +27,14 @@ SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
 PORT = int(os.environ.get("PORT", "10000"))
 INGEST_URL = f"{SUPABASE_URL}/functions/v1/discord-ingest"
 LINK_URL = f"{SUPABASE_URL}/functions/v1/discord-link"
+RESULT_URL = f"{SUPABASE_URL}/functions/v1/discord-result"
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guild_messages = True
 intents.dm_messages = True
+intents.guilds = 
+intents.guild_messages = True
+intents.guild_reactions = True
 class BetTrackerBot(discord.Client):
     def __init__(self):
         super().__init__(intents=intents)
@@ -127,6 +131,49 @@ async def on_message(message: discord.Message):
                         pass
         except Exception as e:
             print(f"ingest error: {e}")
+@bot.event
+async def on_raw_reaction_add(payload):
+    if payload.user_id == bot.user.id:
+        return
+
+    emoji = str(payload.emoji)
+
+    if emoji == "✅":
+        result = "won"
+    elif emoji == "❌":
+        result = "lost"
+    elif emoji == "➖":
+        result = "void"
+    else:
+        return
+
+    try:
+        async with bot.http_session.post(
+            RESULT_URL,
+            headers={
+                "Content-Type": "application/json",
+                "x-ingest-key": DISCORD_INGEST_KEY,
+            },
+            json={
+                "message_id": str(payload.message_id),
+                "result": result,
+            },
+            timeout=aiohttp.ClientTimeout(total=15),
+        ) as r:
+
+            if r.status == 200:
+                print(
+                    f"Updated bet from Discord reaction: "
+                    f"{payload.message_id} -> {result}"
+                )
+            else:
+                print(
+                    f"discord-result error: "
+                    f"{r.status} {await r.text()}"
+                )
+
+    except Exception as e:
+        print(f"reaction update failed: {e}")
 # ---------------- HTTP /health endpoint (for Render + BetTracker status panel) ---------------- #
 async def health(_request):
     ready = bot.is_ready()
