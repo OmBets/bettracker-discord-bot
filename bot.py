@@ -122,7 +122,7 @@ async def on_message(message: discord.Message):
                     return
                 if r.status == 200 and data.get("ok") and not data.get("skipped"):
                     try:
-                        await message.add_reaction("✅")
+                        await message.add_reaction("📚")
                     except Exception:
                         pass
         except Exception as e:
